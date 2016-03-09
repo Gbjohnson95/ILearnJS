@@ -1,40 +1,56 @@
-var matches = document.body.innerHTML.match(/##(.*?)##/g); // Need function to filter duplicates
+var matches = document.body.innerHTML.match(/##(.*?):(.*?)##/g); // Need function to filter duplicates
 
-// First release v0.1 will include 3 catagories of replace strings/macros. CD: for course data, UD: for user data, TEX: for LaTex
+var newhtml = document.body.innerHTML;
 for (var i = 0; i < matches.length; i++) {
-    if (matches[i].indexOf("##CD:") === 0) {
-        CourseDataHandler(matches[i]);
-    } else if (matches[i].indexOf("##TeX:") === 0) {
-        TeXHandler(matches[i]);
-    }
+    var cleanedMatchText = matches[i].replace(/##/g, "");
+    cleanedMatchText = cleanedMatchText.toLocaleLowerCase();
+    var requestClass = cleanedMatchText.match(/^[a-z]*/)[0];
+    cleanedMatchText = cleanedMatchText.replace(/^[a-z]*:/, "");
+    newhtml = newhtml.replace(matches[i], '<span class="' + requestClass + '" id="replaceContainer">' + cleanedMatchText + '</span>');
 }
+document.body.innerHTML = newhtml;
+
+var repleaceContainers = $("span#replaceContainer")
+CourseDataHandler($(repleaceContainers).filter(".cd"));
+DocDataHandler($(repleaceContainers).filter(".dd"));
+TeXHandler($(repleaceContainers).filter(".tex"));
 
 // --- --- --- --- --- --- REPLACE STRING CATAGORY HANDLERS --- --- --- --- --- --- 
-function CourseDataHandler(request) {
-    // Clean up request test
-    var requestText = request.replace(/##CD:/, "");
-    requestText = requestText.replace(/##/, "");
-    requestText = requestText.toLocaleLowerCase();
-
-    // This function will need some attention, because this feels messy
-    // When filter fuction is implimented set regex flags to global
-    switch (requestText) {
-    case "coursecalendar":
-        document.body.innerHTML = document.body.innerHTML.replace(/##CD:CourseCalendar##/i, getCourseCalendarLink());
-        break;
-    case "coursehome":
-        document.body.innerHTML = document.body.innerHTML.replace(/##CD:CourseHome##/i, getCourseHomeLink());
-        break;
-    }
+function CourseDataHandler(elems) {
+    $(elems).each(function () {
+        switch ($(this).html()) {
+        case "coursecalendar":
+            $(this).html(getCourseCalendarLink());
+            break;
+        case "coursehome":
+            $(this).html(getCourseHomeLink());
+            break;
+        }
+    });
 }
 
-function TeXHandler(request) {
+function DocDataHandler(elems) {
+    $(elems).each(function () {
+        switch ($(this).html()) {
+        case "doctitle":
+            $(this).html(getDocumentTitle());
+            break;
+        }
+    });
+}
+
+function TeXHandler(elems) {
     if (!window.katex) {
-        loadKaTeX();
+        loadKaTeX(elems);
     } else {
-        renderAllTeX();
+        $(elems).each(function () {
+            var tex = $(this).html();
+            tex = tex.replace("&amp;", "&");
+            katex.render(tex, this);
+        });
     }
 }
+
 
 // --- --- --- --- --- --- LMS DEPENDANT FUNCTIONS --- --- ---  --- --- --- 
 function getOrgUnitID() {
@@ -42,6 +58,18 @@ function getOrgUnitID() {
         return getUrlParameterByName("ou", parent.document.URL);
     } else {
         return parent.document.URL.split('/')[4];
+    }
+}
+
+function getDocumentTitle() {
+    if (top.document.querySelector("h1.d2l-page-title")) {
+        if (top.document.querySelector("h1.d2l-page-title").innerHTML !== "Edit HTML File") {
+            return top.document.querySelector("h1.d2l-page-title").innerHTML;
+        }
+    } else if (document.title) {
+        return document.title;
+    } else {
+        return "No valid titles found";
     }
 }
 
@@ -64,10 +92,8 @@ function getUrlParameterByName(name, url) {
         return '';
     return decodeURIComponent(results[2].replace(/\+/g, " "));
 }
-
-
 // KaTeX is a latex renderer from Khan Acadamy. 
-function loadKaTeX() {
+function loadKaTeX(elems) {
     $.getScript("https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.5.1/katex.min.js", function () { // Shouldn't use JQuery...
         var head = document.querySelector("head");
         var katexCss = document.createElement("link");
@@ -75,18 +101,6 @@ function loadKaTeX() {
         katexCss.setAttribute("href", "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.5.1/katex.min.css");
         head.appendChild(katexCss);
 
-        renderAllTeX();
+        TeXHandler(elems);
     });
-}
-
-function renderAllTeX() {
-    var matches = document.body.innerHTML.match(/##TeX(.*?)##/g); // Need function to filter duplicates
-    for (var i = 0; i < matches.length; i++) {
-        var requestText = matches[i].replace(/##TeX:/, "");
-        requestText = requestText.replace(/##/, "");
-        requestText = requestText.replace(/\//, "//");
-        var container = document.createElement("div");
-        katex.render(requestText, container);
-        document.body.innerHTML.replace(matches[i], container.innerHTML);
-    }
 }
